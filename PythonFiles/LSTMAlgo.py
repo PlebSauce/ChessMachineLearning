@@ -13,14 +13,19 @@ df_used = df[columns_used]
 onehotencoder = OneHotEncoder(sparse_output=False)
 df_encoded = pd.get_dummies(df_used, columns=['winner', 'white_id', 'black_id', 'moves'])
 
-df_used.loc[:,['player']] = df_used['white_id'].fillna(df_used['black_id'])
+#df_used.loc[:, ['player']] = df_used['white_id'].fillna(df_used['black_id'])
+df_used.loc[:, ['player']] = df_used['white_id'].fillna(df_used['black_id'])
+df_used.loc[:, ['player']].fillna(df_used['white_id'], inplace=True)
+
+print(df_used.columns)
+print(df_encoded.columns)
 df_used.drop(['white_id', 'black_id'], axis=1, inplace=True)
 
 grouped_by_player = df_used.groupby('player')
 
 snip_length = 10
-df['Sequence'] = df.groupby('player')['moves'].transform(lambda x: x.tolist())
-df['NextMove'] = df.groupby('player')['moves'].shift(-1)
+df.loc[:, ['Sequence']] = df.groupby('player')['moves'].transform(lambda x: x.tolist())
+df.loc[:, ['NextMove']] = df.groupby('player')['moves'].shift(-1)
 
 df.dropna(subset=['NextMove'], inplace=True)
 
