@@ -4,6 +4,9 @@ import numpy as np
 from sklearn import linear_model, model_selection, metrics
 from sklearn.preprocessing import OneHotEncoder, LabelBinarizer, LabelEncoder
 from sklearn.compose import ColumnTransformer
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
 
 csv_file_path = "C:/Users/jorda/PycharmProjects/ChessMachineLearning/CSV/games.csv"
 df = pd.read_csv(csv_file_path)
