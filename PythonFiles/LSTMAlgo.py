@@ -7,7 +7,7 @@ from sklearn.compose import ColumnTransformer
 import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
-from keras.layers import LSTM, Dense
+from keras.layers import LSTM, Dense, Flatten
 
 #csv_file_path = "C:/Users/jorda/PycharmProjects/ChessMachineLearning/CSV/games.csv"
 csv_file_path = "C:/Users/jorda/Downloads/ChessMachineLearning/CSV/Test50sample.csv"
@@ -25,7 +25,7 @@ df_used.groupby('player')
 snip_length = 10
 df_used['moves'] = df_used['moves'].apply(lambda x: x.split())
 
-min_games = 2
+min_games = 3
 grouped_by_player = df_used.groupby('player')
 valid_players = [player for player, data in grouped_by_player if len(data) >= min_games]
 newg = df_used[df_used['player'].isin(valid_players)]
@@ -42,48 +42,60 @@ for player, data in newgrouped:
     data.drop(['Sequence', 'moves'], axis=1, inplace=True)
 
     data.loc[:, ['NextMove']] = ""
+    count_of_rows = 0
     for index, row in data.iterrows():
         arr = row['SnippedSequence']
         row['NextMove'] = arr.rpartition(' ')[-1]
         data.loc[index, 'NextMove'] = row['NextMove']
-        data.dropna(subset=['NextMove'], inplace=True)
-
+        count_of_rows = count_of_rows + 1
+    data.dropna(subset=['NextMove'], inplace=True)
     df_encoded = pd.get_dummies(data, columns=['winner', 'SnippedSequence', 'NextMove'])
     #le = LabelEncoder()
     #df_encoded2 = le.fit_transform(df_used['NextMove'])
-    X = df_encoded.values[:, [0, 1, 2, 4]]
-    Y = df_encoded.values[:, 3]
-    X_train, X_test, Y_train, Y_test = model_selection.train_test_split(X, Y, test_size=0.2, train_size=0.8)
+    X = df_encoded.values[:, :(count_of_rows)]
+    Y = df_encoded.values[:, :-count_of_rows]
+    print(X.shape)
+    print(Y.shape)
     
+    X_train, X_test, Y_train, Y_test = model_selection.train_test_split(X, Y, test_size=0.2, train_size=0.8)
+
+    print(X_train.shape)
+    print(X_test.shape)
+    print(Y_train.shape)
+    print(X_test.shape)
     onehotencoder.fit(Y_train.reshape(-1, 1))
     
     X_train_reshaped = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
     X_test_reshaped = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
     #Y_train_reshaped = np.reshape(Y_train, (Y_train.shape[0], 1))
     #Y_test_reshaped = np.reshape(Y_test, (Y_test.shape[0], 1))
-    X_train_reshaped = tf.constant(X_train_reshaped, dtype=tf.float32)  # Assuming your data type is float32
+    X_train_reshaped = tf.constant(X_train_reshaped, dtype=tf.float32) 
     X_test_reshaped = tf.constant(X_test_reshaped, dtype=tf.float32)
     Y_train = tf.constant(Y_train, dtype=tf.float32)
     Y_test = tf.constant(Y_test, dtype=tf.float32)
-    #X_train_reshaped = tensorflow.convert_to_tensor(X_train_reshaped)
-    #Y_train_reshaped = tensorflow.convert_to_tensor(Y_train_reshaped)
+
+    print(X_train_reshaped.shape)
+    print(X_test_reshaped.shape)
+    print(Y_train.shape)
+    print(Y_test.shape)
 
     player_model = Sequential()
     player_model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train_reshaped.shape[1], X_train_reshaped.shape[2])))
-    player_model.add(Dense(units=1))
+    player_model.add(Flatten())
+    player_model.add(Dense(units=Y_train.shape[1], activation = 'softmax'))
 
-    player_model.compile(loss='mean_squared_error', optimizer='adam')
-
-    player_model.fit(X_train_reshaped, Y_train, verbose=2, batch_size=1, epochs=50) #may need validation_split=0.2
-
-    #plt.plot(history.history['loss'])
-    #plt.title('Model Loss')
-    #plt.ylabel('Loss')
-    #plt.xlabel('Epoch')
-    #plt.show()
-
+    player_model.compile(loss='categorical_crossentropy', optimizer='adam')
+    
     prediction = player_model.predict(X_test_reshaped)
-    print(prediction)
+    print(prediction.shape)
+    print(X_train_reshaped.shape)
+    print(Y_train.shape)
+    print(Y_train)
+
+    print("fitting")
+    print(player_model.summary())
+    player_model.fit(X_train_reshaped, Y_train, verbose=2, batch_size=1, epochs=50, validation_data=(X_test_reshaped, Y_test)) #may need validation_split=0.2
+
     #print(metrics.accuracy_score(Y_test, prediction))
     #print(metrics.mean_squared_error(Y_test, prediction))
 
