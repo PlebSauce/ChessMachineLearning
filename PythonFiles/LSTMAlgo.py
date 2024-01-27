@@ -18,6 +18,10 @@ df = pd.read_csv(csv_file_path)
 columns_used = ['winner', 'white_id', 'white_rating', 'black_id', 'black_rating', 'moves']
 df_used = df[columns_used].copy().reset_index(drop=True)
 
+le = LabelEncoder()
+
+min_games = 10
+
 df_used['player'] = df_used['white_id'].fillna(df_used['black_id'])
 #df_used['player'] = df_used['player'].fillna(df_used['white_id'], inplace=True)
 
@@ -28,15 +32,28 @@ df_used.groupby('player')
 snip_length = 10
 df_used['moves'] = df_used['moves'].apply(lambda x: x.split())
 
-min_games = 20
+#mylog_model = linear_model.LogisticRegression()
+df_used['Sequence'] = df_used['moves'].apply(lambda x: ' '.join(x))
+df_used['SnippedSequence'] = df_used['Sequence'].apply(lambda x: ' '.join(x.split()[:snip_length]))
+df_used.drop(['Sequence', 'moves'], axis=1, inplace=True)
+
+df_used.loc[:, ['NextMove']] = ""
+count_of_rows = 0
+unique_moves = []
+for index, row in df_used.iterrows():
+    arr = row['SnippedSequence']
+    row['NextMove'] = arr.rpartition(' ')[-1]
+    df_used.loc[index, 'NextMove'] = row['NextMove']
+    if df_used.loc[index, 'NextMove'] not in unique_moves:
+        unique_moves.append(df_used.loc[index, 'NextMove'])
+        count_of_rows = count_of_rows + 1
+df_used.dropna(subset=['NextMove'], inplace=True)
 
 grouped_by_player = df_used.groupby('player')
 valid_players = [player for player, data in grouped_by_player if len(data) >= min_games]
 newg = df_used[df_used['player'].isin(valid_players)]
 newgrouped = newg.groupby('player')
-
-#mylog_model = linear_model.LogisticRegression()
-le = LabelEncoder()
+#data['NextMove'] = le.fit_transform(data['NextMove'])
 models = {}
 X_train_models = {}
 Y_train_models = {}
@@ -47,31 +64,10 @@ decoded_predictions = {}
 
 for player, data in newgrouped:
     data.drop(['player'], axis=1, inplace=True)
-    data['Sequence'] = data['moves'].apply(lambda x: ' '.join(x))
-    data['SnippedSequence'] = data['Sequence'].apply(lambda x: ' '.join(x.split()[:snip_length]))
-    data.drop(['Sequence', 'moves'], axis=1, inplace=True)
-
-    data.loc[:, ['NextMove']] = ""
-    count_of_rows = 0
-    unique_moves = []
-    for index, row in data.iterrows():
-        arr = row['SnippedSequence']
-        row['NextMove'] = arr.rpartition(' ')[-1]
-        data.loc[index, 'NextMove'] = row['NextMove']
-        if data.loc[index, 'NextMove'] not in unique_moves:
-            unique_moves.append(data.loc[index, 'NextMove'])
-            count_of_rows = count_of_rows + 1
-    data.dropna(subset=['NextMove'], inplace=True)
-
-    #data['winner'] = le.fit_transform(data['winner'] )
-    #data['SnippedSequence'] = le.fit_transform(data['SnippedSequence'])
-    #data['NextMove'] = le.fit_transform(data['NextMove'])
     data['winner'] = le.fit_transform(data['winner'])
     data['black_rating'] = le.fit_transform(data['black_rating'])
     data['white_rating'] = le.fit_transform(data['white_rating'])
     data['SnippedSequence'] = le.fit_transform(data['SnippedSequence'])
-    #data['NextMove'] = le.fit_transform(data['NextMove'])
-    
     X = data.iloc[:, :-1].values
     Y = le.fit_transform(data['NextMove']).reshape(-1, 1)
     #Y = data.iloc[:, -1].values.reshape(-1, 1)
@@ -102,6 +98,7 @@ for player, data in newgrouped:
     Y_test_models[player] = Y_test
     models[player] = player_model
 
+    
     prediction = player_model.predict(X_test_reshaped)
 
     print("decoded:")
@@ -112,12 +109,12 @@ for player, data in newgrouped:
     decoded_predictions[player] = prediction_readable
 
 player_ids_list = list(models.keys())
-print("List of Player IDs:")
-for index, player_ids in enumerate(player_ids_list, 1):
-    print(f"{index}. {player_ids}")
 
 while (input("Would you like to select a player? (Y/N)")) != 'N':
     try:
+        print("List of Player IDs:")
+        for index, player_ids in enumerate(player_ids_list, 1):
+            print(f"{index}. {player_ids}")
         selected_index = int(input("Enter the index ID of the player you would like to analyze:"))-1
     except:
         ("Not an integer! Please try again.")
@@ -139,12 +136,3 @@ while (input("Would you like to select a player? (Y/N)")) != 'N':
         print(metrics.accuracy_score(player_y_test, player_prediction))
     else:
         print("Invalid ID")
-        #WARNING:tensorflow:6 out of the last 6 calls to 
-        #<function Model.make_predict_function.<locals>.predict_function at 0x000002310FB73E20> 
-        #triggered tf.function retracing. Tracing is expensive and the excessive number of 
-        #tracings could be due to (1) creating @tf.function repeatedly in a loop, (2) passing 
-        #tensors with different shapes, (3) passing Python objects instead of tensors. 
-        #For (1), please define your @tf.function outside of the loop. For (2), @tf.function has 
-        #reduce_retracing=True option that can avoid unnecessary retracing. For (3), please refer 
-        #to https://www.tensorflow.org/guide/function#controlling_retracing and 
-        #https://www.tensorflow.org/api_docs/python/tf/function for  more details.
