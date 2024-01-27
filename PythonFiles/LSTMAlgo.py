@@ -1,3 +1,5 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import pandas as pd
 from matplotlib import pyplot
 import numpy as np
@@ -17,7 +19,7 @@ columns_used = ['winner', 'white_id', 'white_rating', 'black_id', 'black_rating'
 df_used = df[columns_used].copy().reset_index(drop=True)
 
 df_used['player'] = df_used['white_id'].fillna(df_used['black_id'])
-df_used['player'].fillna(df_used['white_id'], inplace=True)
+#df_used['player'] = df_used['player'].fillna(df_used['white_id'], inplace=True)
 
 df_used.drop(columns=['white_id', 'black_id'], axis=1, inplace=True)
 
@@ -26,7 +28,8 @@ df_used.groupby('player')
 snip_length = 10
 df_used['moves'] = df_used['moves'].apply(lambda x: x.split())
 
-min_games = 3
+min_games = 20
+
 grouped_by_player = df_used.groupby('player')
 valid_players = [player for player, data in grouped_by_player if len(data) >= min_games]
 newg = df_used[df_used['player'].isin(valid_players)]
@@ -34,12 +37,13 @@ newgrouped = newg.groupby('player')
 
 #mylog_model = linear_model.LogisticRegression()
 le = LabelEncoder()
-onehotencoder = OneHotEncoder(sparse_output=False)
 models = {}
 X_train_models = {}
 Y_train_models = {}
 X_test_models = {}
 Y_test_models = {}
+predictions = {}
+decoded_predictions = {}
 
 for player, data in newgrouped:
     data.drop(['player'], axis=1, inplace=True)
@@ -59,19 +63,21 @@ for player, data in newgrouped:
             count_of_rows = count_of_rows + 1
     data.dropna(subset=['NextMove'], inplace=True)
 
-    data['winner'] = le.fit_transform(data['winner'] )
+    #data['winner'] = le.fit_transform(data['winner'] )
+    #data['SnippedSequence'] = le.fit_transform(data['SnippedSequence'])
+    #data['NextMove'] = le.fit_transform(data['NextMove'])
+    data['winner'] = le.fit_transform(data['winner'])
+    data['black_rating'] = le.fit_transform(data['black_rating'])
+    data['white_rating'] = le.fit_transform(data['white_rating'])
     data['SnippedSequence'] = le.fit_transform(data['SnippedSequence'])
-    data['NextMove'] = le.fit_transform(data['NextMove'])
-    #df_encoded = pd.get_dummies(data, columns=['winner', 'SnippedSequence', 'NextMove'])
-    df_encoded = pd.get_dummies(data, columns=['winner', 'black_rating', 'white_rating', 'SnippedSequence', 'NextMove'])
+    #data['NextMove'] = le.fit_transform(data['NextMove'])
     
-    X = df_encoded.values[:, :(count_of_rows)]
-    Y = df_encoded.values[:, :-count_of_rows]
+    X = data.iloc[:, :-1].values
+    Y = le.fit_transform(data['NextMove']).reshape(-1, 1)
+    #Y = data.iloc[:, -1].values.reshape(-1, 1)
     
     X_train, X_test, Y_train, Y_test = model_selection.train_test_split(X, Y, test_size=0.2, train_size=0.8)
-
-    onehotencoder.fit(Y_train.reshape(-1, 1))
-    #le.fit(Y_train.reshape(-1,1))
+    #X_train, X_test, Y_train, Y_test = model_selection.train_test_split(X, Y, test_size=1/len(X), random_state=42)
     
     X_train_reshaped = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
     X_test_reshaped = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
@@ -79,7 +85,7 @@ for player, data in newgrouped:
     X_test_reshaped = tf.constant(X_test_reshaped, dtype=tf.float32)
     Y_train = tf.constant(Y_train, dtype=tf.float32)
     Y_test = tf.constant(Y_test, dtype=tf.float32)
-
+    
     player_model = Sequential()
     player_model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train_reshaped.shape[1], X_train_reshaped.shape[2])))
     player_model.add(Flatten())
@@ -87,7 +93,6 @@ for player, data in newgrouped:
 
     player_model.compile(loss='categorical_crossentropy', optimizer='adam')
     
-    prediction = player_model.predict(X_test_reshaped)
 
     player_model.fit(X_train_reshaped, Y_train, verbose=2, batch_size=1, epochs=50, validation_data=(X_test_reshaped, Y_test)) #may need validation_split=0.2
 
@@ -97,67 +102,49 @@ for player, data in newgrouped:
     Y_test_models[player] = Y_test
     models[player] = player_model
 
+    prediction = player_model.predict(X_test_reshaped)
+
+    print("decoded:")
+    prediction = prediction.ravel()
+    prediction_readable = le.inverse_transform(prediction.astype(int))
+    print(prediction_readable)
+    predictions[player] = prediction
+    decoded_predictions[player] = prediction_readable
+
 player_ids_list = list(models.keys())
 print("List of Player IDs:")
 for index, player_ids in enumerate(player_ids_list, 1):
     print(f"{index}. {player_ids}")
 
-selected_index = int(input("Enter the index ID of the player you would like to analyze:"))-1
+while (input("Would you like to select a player? (Y/N)")) != 'N':
+    try:
+        selected_index = int(input("Enter the index ID of the player you would like to analyze:"))-1
+    except:
+        ("Not an integer! Please try again.")
+    if 0 <= selected_index < len(player_ids_list):
+        selected_player = player_ids_list[selected_index]
+        player_model = models[selected_player]
+        player_x_train = X_train_models[selected_player]
+        player_y_train = Y_train_models[selected_player]
+        player_x_test = X_test_models[selected_player]
+        player_y_test = Y_test_models[selected_player]
+        player_prediction = predictions[selected_player]
+        player_decoded_prediction = decoded_predictions[selected_player]
 
-if 0 <= selected_index < len(player_ids_list):
-    selected_player = player_ids_list[selected_index]
-    player_model = models[selected_player]
-    player_x_train = X_train_models[selected_player]
-    player_y_train = Y_train_models[selected_player]
-    player_x_test = X_test_models[selected_player]
-    player_y_test = Y_test_models[selected_player]
-
-    prediction = player_model.predict(player_x_test)
-    column_names = onehotencoder.get_feature_names_out()
-
-    relevant_columns = column_names[:prediction.shape[1]]
-    prediction = prediction.reshape(-1, len(relevant_columns))
-    prediction_readable = np.argmax(prediction, axis=1)
-    prediction_readable = le.inverse_transform(prediction_readable)
-
-    decoded_predictions_index = np.argmax(prediction, axis=1)
-    decoded_predictions_labels = column_names[decoded_predictions_index]
-
-    #all_labels = np.concatenate((player_y_train, player_y_test), axis=0)
-    #all_labels = np.argmax(all_labels, axis=1)
-    #le.fit(decoded_predictions_label)
-
-    #cannot convert string to float: 'x0_False;
-    #decoded_predictions_label = onehotencoder.inverse_transform(relevant_columns)
-    #y contains previously unseen labels: ['x0_True']
-    #decoded_predictions_label = le.inverse_transform(decoded_predictions_label)
-    
-    print(column_names)
-    true_labels = np.argmax(player_y_test, axis=1)
-    pred_labels = np.argmax(prediction, axis=1)
-    true_labels = le.inverse_transform(true_labels)
-    pred_labels = le.inverse_transform(pred_labels)
-    print("True Labels Shape:", true_labels.shape, "Type:", true_labels.dtype)
-    print("Predicted Labels Shape:", pred_labels.shape, "Type:", pred_labels.dtype) 
-    print("Sample True Labels:", true_labels[:10])
-    print("Sample Predicted Labels:", pred_labels[:10])
-    # Print unique values of true labels and predicted labels
-    print("Unique True Labels:", np.unique(true_labels))
-    print("Unique Predicted Labels:", np.unique(pred_labels))                                    
-    #decoded_predictions = onehotencoder.inverse_transform(prediction)
-    print("decoded_predictions_labels:")
-    print(decoded_predictions_labels)
-    print("predictions:")
-    print(prediction_readable)
-    #accuracy = accuracy_score(np.argmax(player_y_test, axis=1), prediction)
-
-    #print(accuracy)
-
-    player_y_test = np.argmax(player_y_test, axis=1)
-    prediction = np.argmax(prediction, axis=1)
-    #ValueError: `y_true` is binary while y_score is 2d with 10 classes. 
-    #If `y_true` does not contain all the labels, `labels` must be provided
-    print(metrics.top_k_accuracy_score(player_y_test, prediction))
-    print(metrics.recall_score(player_y_test, prediction))
-else:
-    print("Invalid ID")
+        print(player_y_test)
+        print(player_prediction)
+        print("predictions:")
+        print(player_decoded_prediction)
+        print("Accuracy:")
+        print(metrics.accuracy_score(player_y_test, player_prediction))
+    else:
+        print("Invalid ID")
+        #WARNING:tensorflow:6 out of the last 6 calls to 
+        #<function Model.make_predict_function.<locals>.predict_function at 0x000002310FB73E20> 
+        #triggered tf.function retracing. Tracing is expensive and the excessive number of 
+        #tracings could be due to (1) creating @tf.function repeatedly in a loop, (2) passing 
+        #tensors with different shapes, (3) passing Python objects instead of tensors. 
+        #For (1), please define your @tf.function outside of the loop. For (2), @tf.function has 
+        #reduce_retracing=True option that can avoid unnecessary retracing. For (3), please refer 
+        #to https://www.tensorflow.org/guide/function#controlling_retracing and 
+        #https://www.tensorflow.org/api_docs/python/tf/function for  more details.
