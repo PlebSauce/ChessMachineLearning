@@ -6,5 +6,6 @@ It will utilize a long short-term memory networking algorithm which may take pre
 # To-Do
 Implement display accuracy for all players at once  
 Change brute force assigning of dup_rows and df_used  
-Higher Accuracy  
-Implement Stockfish to recommend good moves  
+Higher accuracy  
+Implement Stockfish to recommend good moves   
+Use object oriented approach and use modularity to make changes such as have a make_model function that returns a model.
