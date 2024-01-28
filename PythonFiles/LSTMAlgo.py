@@ -12,15 +12,15 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten
 from keras.metrics import top_k_categorical_accuracy as keras_top_k
 
-#csv_file_path = "C:/Users/jorda/PycharmProjects/ChessMachineLearning/CSV/games.csv"
-csv_file_path = "C:/Users/jorda/Downloads/ChessMachineLearning/CSV/Test50sample.csv"
+csv_file_path = "CSV/games.csv"
+#csv_file_path = "C:/Users/jorda/Downloads/ChessMachineLearning/CSV/Test50sample.csv"
 df = pd.read_csv(csv_file_path)
 columns_used = ['winner', 'white_id', 'white_rating', 'black_id', 'black_rating', 'moves']
 df_used = df[columns_used].copy().reset_index(drop=True)
 
 le = LabelEncoder()
 
-min_games = 10
+min_games = 40
 
 df_used['player'] = df_used['white_id'].fillna(df_used['black_id'])
 
@@ -58,8 +58,10 @@ newgrouped = newg.groupby('player')
 models = {}
 #accuracies = {}
 k_accuracies = {}
-
-k = int(input("Select the K value to be used for top K accuracy:"))
+try:
+    k = int(input("Select the K value to be used for top K accuracy:"))
+except:
+    print("Invalid input, enter an integer.")
 
 for player, data in newgrouped:
     data.drop(['player'], axis=1, inplace=True)
@@ -79,11 +81,14 @@ for player, data in newgrouped:
     X_test_reshaped = tf.constant(X_test_reshaped, dtype=tf.float32)
     Y_train = tf.constant(Y_train, dtype=tf.float32)
     Y_test = tf.constant(Y_test, dtype=tf.float32)
+
+    largest_index = np.max(Y)
     
     player_model = Sequential()
     player_model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train_reshaped.shape[1], X_train_reshaped.shape[2])))
     player_model.add(Flatten())
-    player_model.add(Dense(units=Y_train.shape[0] + 1, activation = 'softmax'))
+    #player_model.add(Dense(units=Y_train.shape[0] + 1, activation = 'softmax'))
+    player_model.add(Dense(units=(largest_index + 1), activation = 'softmax'))
 
     player_model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['sparse_categorical_accuracy', keras_top_k])
     
@@ -93,8 +98,7 @@ for player, data in newgrouped:
 
     total_accuracy = 0 
     total_k_accuracy = 0
-    for i in range(len(X_test_reshaped[0])):
-    
+    for i in range(len(X_test)):
         intest = X_test_reshaped[i:i+1]
         if intest.shape[0] == 0:
             print("No samples in the test set. Skipping prediction.")
@@ -127,7 +131,7 @@ for player, data in newgrouped:
         total_k_accuracy += top_k_accuracy
         #total_accuracy += accuracy
     #average_accuracy = total_accuracy / len(X_test_reshaped[0])
-    average_k_accuracy = total_k_accuracy / len(X_test_reshaped[0])
+    average_k_accuracy = total_k_accuracy / len(X_test)
     
     #accuracies[player] = average_accuracy
     k_accuracies[player] = average_k_accuracy
