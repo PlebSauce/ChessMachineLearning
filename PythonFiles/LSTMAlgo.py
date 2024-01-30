@@ -15,8 +15,15 @@ from keras.metrics import top_k_categorical_accuracy as keras_top_k
 
 tf.random.set_seed(65)
 
-csv_file_path = "CSV/games.csv"
+try:
+    file_input = input("Enter file name in CSV file to use. No csv extension needed,"
+                       " for example, for a file 'CSV/games.csv' type 'games':")
+    csv_file_path = "CSV/" + file_input + ".csv"
+except:
+    print("Check your file pathing for errors")
+
 #csv_file_path = "C:/Users/jorda/Downloads/ChessMachineLearning/CSV/Test50sample.csv"
+#csv_file_path = "CSV/games.csv"
 df = pd.read_csv(csv_file_path)
 columns_used = ['winner', 'white_id', 'white_rating', 'black_id', 'black_rating', 'moves']
 df_used = df[columns_used].copy().reset_index(drop=True)
@@ -102,7 +109,7 @@ k_accuracies = {}
 total = 0.0
 
 try:
-    k = int(input("Select the K value to be used for top K accuracy between 1-10 (inclusive):"))
+    k = int(input("Select the K value (recommended 3) to be used for top K accuracy between 1-10 (inclusive):"))
     assert 1 <= k <= 10, "Must be between 1-10 (inclusive)"
 except ValueError as ve:
     print(f"Invalid input: {ve}")
