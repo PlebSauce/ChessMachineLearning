@@ -5,8 +5,7 @@ It will utilize a long short-term memory networking algorithm which may take pre
 
 Uses: Pandas, Scikit-learn, Tensorflow, Keras
 
-# To-Do
-* Implement display accuracy for all players at once  
+# To-Do  
 * Change brute force assigning of dup_rows and df_used  
 * Higher accuracy  
 * Implement Stockfish to recommend good moves   
