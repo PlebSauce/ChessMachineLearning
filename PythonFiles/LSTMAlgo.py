@@ -118,6 +118,12 @@ except AssertionError as ae:
 
 for player, data in newgrouped:
     data.drop(['player'], axis=1, inplace=True)
+    X_non_encoded = data.iloc[:, :-1].values
+    Y_non_encoded = data['NextMove'].values
+
+    X_train_non_encoded, X_test_non_encoded, Y_train_non_encoded, Y_test_non_encoded = model_selection.train_test_split(
+        X_non_encoded, Y_non_encoded, test_size=0.2, train_size=0.8, random_state=65
+    )
     data['winner'] = le.fit_transform(data['winner'])
     data['black_rating'] = le.fit_transform(data['black_rating'])
     data['white_rating'] = le.fit_transform(data['white_rating'])
@@ -150,6 +156,7 @@ for player, data in newgrouped:
 
     total_accuracy = 0 
     total_k_accuracy = 0
+    print("For {}'s games".format(player))
     for i in range(len(X_test)):
         intest = X_test_reshaped[i:i+1]
         if intest.shape[0] == 0:
@@ -157,15 +164,20 @@ for player, data in newgrouped:
             break
         prediction = player_model.predict(intest)
 
+        intest_non_encoded = X_test_non_encoded[i:i+1]
+        print("For move set")
+        print(intest_non_encoded[:,3])
+
         true_label = Y_test[i:i+1]
         true_label_np = true_label.numpy().flatten().astype(int)
         true_label_readable = le.inverse_transform(true_label_np)
-        print("True Value:")
+        print("Actual next move:")
         print(true_label_readable)
 
         top_k_indices = np.argsort(prediction[0])[::-1][:k]
         top_k_predictions = le.inverse_transform(top_k_indices)
-        print("Top {} Predictions:".format(k), top_k_predictions)        
+        print("Top {} Predictions:".format(k), top_k_predictions)
+        print("Accuracy: ")        
         if true_label_readable[0] in top_k_predictions:
             top_k_accuracy = 1.0
         else:
@@ -175,6 +187,7 @@ for player, data in newgrouped:
         total_k_accuracy += top_k_accuracy
     average_k_accuracy = total_k_accuracy / len(X_test)
     
+    print("Average accuracy: ")
     print(average_k_accuracy)
     total += average_k_accuracy
     k_accuracies[player] = average_k_accuracy
